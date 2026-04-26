@@ -4,6 +4,7 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.vehicle import Vehicle
     from app.models.reservation import Reservation
+    from app.models.notification import Notification
 
 class EVDriver(SQLModel, table=True):
     __tablename__ = "evdriver"
@@ -16,3 +17,5 @@ class EVDriver(SQLModel, table=True):
     # İlişkiler
     vehicles: List["Vehicle"] = Relationship(back_populates="driver")
     reservations: List["Reservation"] = Relationship(back_populates="driver")
+
+    notifications: List["Notification"] = Relationship(back_populates="driver")  #added by Beyazt43

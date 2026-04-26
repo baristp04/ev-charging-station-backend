@@ -4,6 +4,7 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.station import ChargingStation
 
+#ismi OperationsSpecialist olamadigi icin ozur dilerim büyük harfle yapinca alakasiz bir yerde error veriyordu
 
 class OperationsSpecialist(SQLModel, table=True):
     __tablename__ = "operationspecialist"

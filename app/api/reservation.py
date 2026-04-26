@@ -56,3 +56,5 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     session.commit()
     session.refresh(reservation_data)
     return {"message": "Rezervasyon başarıyla oluşturuldu", "data": reservation_data}
+
+#sa böyle mi imis?

@@ -12,5 +12,10 @@ class ChargingStation(SQLModel, table=True):
     latitude: float
     longitude: float
     status: str = Field(default="available")
-    
+
+    #Need an operator linked to a station (according to the domain model)
+    # Add this inside your ChargingStation class in station.py
+    operator_id: Optional[int] = Field(default=None, foreign_key="operationspecialist.operatorID")
+    operator: Optional["OperationsSpecialist"] = Relationship(back_populates="managed_stations")
+
     chargers: List["Charger"] = Relationship(back_populates="station")

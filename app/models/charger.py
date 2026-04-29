@@ -1,5 +1,6 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, TYPE_CHECKING, List
+from datetime import datetime
 
 if TYPE_CHECKING:
     from app.models.station import ChargingStation
@@ -13,6 +14,10 @@ class Charger(SQLModel, table=True):
     connectorType: str
     pricePerKwh: float
     status: str = Field(default="available")
+
+    # EKLENEN ALANLAR:
+    maintenanceStartTime: Optional[datetime] = None
+    maintenanceNotes: Optional[str] = None
     
     station_id: int = Field(foreign_key="chargingstation.stationID")
     station: "ChargingStation" = Relationship(back_populates="chargers")

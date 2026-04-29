@@ -1,8 +1,9 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING 
 
 if TYPE_CHECKING:
     from app.models.driver import EVDriver
+    from app.models.reservation import Reservation 
 
 class Vehicle(SQLModel, table=True):
     __tablename__ = "vehicle"
@@ -14,4 +15,7 @@ class Vehicle(SQLModel, table=True):
     connectorType: str # Örn: 'Type 2'
     
     driver_id: int = Field(foreign_key="evdriver.driverID")
+    
     driver: "EVDriver" = Relationship(back_populates="vehicles")
+    # EKLENDİ: Aracın rezervasyon geçmişini görebilmek için
+    reservations: List["Reservation"] = Relationship(back_populates="vehicle")

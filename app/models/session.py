@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from app.models.payment import Payment
 
 class ChargingSession(SQLModel, table=True):
-    __tablename__ = "session"
+    __tablename__ = "chargingsession"
     sessionID: Optional[int] = Field(default=None, primary_key=True)
     startTime: datetime = Field(default_factory=datetime.utcnow)
     endTime: Optional[datetime] = None

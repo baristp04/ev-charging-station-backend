@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.api.reservation import station_router 
+from app.api.maintenance import maintenance_router
 
 from app.models.driver import EVDriver
 from app.models.vehicle import Vehicle
@@ -10,15 +11,16 @@ from app.models.reservation import Reservation
 from app.models.session import ChargingSession
 from app.models.payment import Payment
 
-# 1. FastAPI uygulamasını başlatıyoruz
+# 1. FastAPI uygulamasını başlat
 app = FastAPI(title="EV Charging Station Management System")
 
-# 2. Veritabanı tablolarını uygulama başlarken oluşturuyoruz
+# 2. Veritabanı tablolarını uygulama başlarken oluştur
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
 
 app.include_router(station_router)
+app.include_router(maintenance_router)
 
 @app.get("/")
 def root():

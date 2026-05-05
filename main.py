@@ -1,28 +1,40 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.api.reservation import station_router 
 from app.api.maintenance import maintenance_router
 from app.api.navigation import navigation_router
+from app.api.analytics import analytics_router  # Router imported from main
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import os
-from pathlib import Path
+from pathlib import Path  # Library used for safe and cross-platform path handling
 
+# Import all models (including the ones newly added in main)
 from app.models.driver import EVDriver
 from app.models.vehicle import Vehicle
+from app.models.operationspecialist import OperationsSpecialist  
 from app.models.station import ChargingStation
 from app.models.charger import Charger
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession
 from app.models.payment import Payment
+from app.models.SystemAnalyst import SystemAnalyst               
+from app.models.EVTechnician import EVTechnician                 
+from app.models.notification import Notification                 
 
-app = FastAPI(title="EV Charging Station Management System")
-
-@app.on_event("startup")
-def on_startup():
+# Lifespan event handler (recommended over on_event in modern FastAPI)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This block runs once when the server starts
     create_db_and_tables()
+    yield
+    # Code after yield runs when the server shuts down
 
+app = FastAPI(title="EV Charging Station Management System", lifespan=lifespan)
+
+# Configure CORS middleware (currently allows all origins, methods, and headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,29 +42,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files directory
 app.mount("/static", StaticFiles(directory="."), name="static")
 
+# Register all routers
 app.include_router(station_router)
 app.include_router(maintenance_router)
 app.include_router(navigation_router)
+app.include_router(analytics_router)  # Router integrated from main
 
 @app.get("/")
 def root():
     return {"message": "EV Charging System API is running"}
 
+# Configuration endpoint for frontend usage
 @app.get("/api/config")
 def get_config():
-    """Frontend için gerekli konfigürasyonları döner"""
+    """Returns configuration values required by the frontend"""
     return {
         "google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")
     }
 
+# Map endpoint with safe path resolution
 @app.get("/map", response_class=HTMLResponse)
 def get_map():
-    """Frontend'deki navigation.html dosyasını serve et"""
+    """Serves the navigation.html file used in the frontend"""
     frontend_nav_path = Path(__file__).parent.parent / "ev-charging-station-frontend" / "navigation.html"
     try:
         with open(frontend_nav_path, "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return "<h1>Navigation.html bulunamadı</h1>"
+        return "<h1>navigation.html not found</h1>"

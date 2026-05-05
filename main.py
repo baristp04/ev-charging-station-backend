@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import os
+from pathlib import Path
 
 from app.models.driver import EVDriver
 from app.models.vehicle import Vehicle
@@ -39,9 +40,19 @@ app.include_router(navigation_router)
 def root():
     return {"message": "EV Charging System API is running"}
 
+@app.get("/api/config")
+def get_config():
+    """Frontend için gerekli konfigürasyonları döner"""
+    return {
+        "google_maps_api_key": os.getenv("GOOGLE_MAPS_API_KEY", "")
+    }
+
 @app.get("/map", response_class=HTMLResponse)
 def get_map():
-    with open("navigation.html", "r", encoding="utf-8") as f:
-        html = f.read()
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
-    return html.replace("API_KEY", api_key)
+    """Frontend'deki navigation.html dosyasını serve et"""
+    frontend_nav_path = Path(__file__).parent.parent / "ev-charging-station-frontend" / "navigation.html"
+    try:
+        with open(frontend_nav_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "<h1>Navigation.html bulunamadı</h1>"

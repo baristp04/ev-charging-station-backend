@@ -16,3 +16,4 @@ class EVDriver(SQLModel, table=True):
     # İlişkiler
     vehicles: List["Vehicle"] = Relationship(back_populates="driver")
     reservations: List["Reservation"] = Relationship(back_populates="driver")
+    notifications: List["Notification"] = Relationship(back_populates="driver")

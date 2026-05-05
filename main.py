@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.database import create_db_and_tables
 from app.api.reservation import station_router 
@@ -21,14 +20,6 @@ from app.models.charger import Charger
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession
 from app.models.payment import Payment
-from app.models.SystemAnalyst import SystemAnalyst               # ADDED
-from app.models.EVTechnician import EVTechnician                 # ADDED
-from app.models.notification import Notification                 # ADDED
-
-# Define the lifespan event (The modern replacement for on_event)
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # This runs exactly once when the server starts up
 from app.models.SystemAnalyst import SystemAnalyst               
 from app.models.EVTechnician import EVTechnician                 
 from app.models.notification import Notification                 
@@ -38,10 +29,6 @@ from app.models.notification import Notification
 async def lifespan(app: FastAPI):
     # This block runs once when the server starts
     create_db_and_tables()
-    yield
-    # Anything after the 'yield' would run when the server shuts down
-
-app = FastAPI(title="EV Charging Station Management System", lifespan=lifespan)
     yield
     # Code after yield runs when the server shuts down
 

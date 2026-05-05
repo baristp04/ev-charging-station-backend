@@ -14,3 +14,7 @@ class ChargingStation(SQLModel, table=True):
     status: str = Field(default="available")
     
     chargers: List["Charger"] = Relationship(back_populates="station")
+
+    # New relationships for Operations Specialist
+    operator_id: Optional[int] = Field(default=None, foreign_key="operationspecialist.operatorID")
+    operator: Optional["OperationsSpecialist"] = Relationship(back_populates="managed_stations")

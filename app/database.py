@@ -20,7 +20,13 @@ if DATABASE_URL.startswith("postgres://"):
 
 # Veritabanı motorunu (engine) oluşturur
 # echo=True parametresi, terminalde SQL sorgularını görmeni sağlar (geliştirme aşamasında faydalıdır)
-engine = create_engine(DATABASE_URL, echo=True)
+
+# connect_args, özellikle Neon/PostgreSQL gibi SSL gerektiren bağlantılarda önemlidir
+engine = create_engine(
+    DATABASE_URL, 
+    echo=True, 
+    connect_args={"sslmode": "require"} 
+)
 
 # Veritabanı tablolarını oluşturma fonksiyonu (Uygulama başlarken çalışır)
 def create_db_and_tables():

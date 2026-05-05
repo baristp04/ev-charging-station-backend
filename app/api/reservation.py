@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from app.models.station import ChargingStation
 from app.database import get_session # Veritabanı bağlantısı
 from app.models.reservation import Reservation
@@ -38,7 +38,7 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
         reservation_data.date = reservation_data.startTime
 
     # 2. Kural: Maksimum 24 saat önceden (ARTIK HATA VERMEYECEK)
-    if reservation_data.startTime > datetime.utcnow() + timedelta(hours=24):
+    if reservation_data.startTime > datetime.now(timezone.utc) + timedelta(hours=24):
         raise HTTPException(status_code=400, detail="Rezervasyon en fazla 24 saat önceden yapılabilir.")
     
     # 3. Kural: Maksimum şarj süresi (2 saat)

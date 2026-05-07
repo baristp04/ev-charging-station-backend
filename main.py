@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import os
 from pathlib import Path  # Library used for safe and cross-platform path handling
+from app.api.auth import auth_router
 
 # Import all models (including the ones newly added in main)
 from app.models.driver import EVDriver
@@ -50,6 +51,7 @@ app.include_router(station_router)
 app.include_router(maintenance_router)
 app.include_router(navigation_router)
 app.include_router(analytics_router)  # Router integrated from main
+app.include_router(auth_router)
 
 @app.get("/")
 def root():

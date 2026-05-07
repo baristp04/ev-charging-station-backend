@@ -263,4 +263,32 @@ with Session(engine) as session:
         session.commit()
         print(f"Created {res_created} reservations, {sessions_created} sessions & payments.")
 
+import hashlib
+
+# ── Test Kullanıcısı (Login testi için) ──────────────────────────────────────
+test_email = "sercan@mail.com"
+test_password = "test123"
+test_hash = hashlib.sha256(test_password.encode()).hexdigest()
+
+with Session(engine) as session:
+    test_driver = session.exec(
+        select(EVDriver).where(EVDriver.email == test_email)
+    ).first()
+    
+    if test_driver:
+        test_driver.passwordHash = test_hash
+        session.add(test_driver)
+        session.commit()
+        print(f"\n🔑 Test kullanıcısı güncellendi: {test_email} / {test_password}")
+    else:
+        new_driver = EVDriver(
+            name="Sercan Coşar",
+            email=test_email,
+            phoneNumber="05551110004",
+            passwordHash=test_hash
+        )
+        session.add(new_driver)
+        session.commit()
+        print(f"\n🔑 Test kullanıcısı oluşturuldu: {test_email} / {test_password}")
+
 print("\n✅ Seed complete. Your database is ready for UC-04.")

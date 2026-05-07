@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class Charger(SQLModel, table=True):
     __tablename__ = "charger"
     chargerID: Optional[int] = Field(default=None, primary_key=True)
-    type: str  # AC veya DC
+    type: str  # AC or DC
     powerOutput: float
     connectorType: str
     pricePerKwh: float

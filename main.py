@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from app.api import charging
 from app.database import create_db_and_tables
 from app.api.reservation import station_router 
 from app.api.maintenance import maintenance_router
 from app.api.navigation import navigation_router
+from app.api import vehicleRegistration
 from app.api.analytics import analytics_router  # Router imported from main
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +53,8 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 app.include_router(station_router)
 app.include_router(maintenance_router)
 app.include_router(navigation_router)
+app.include_router(charging.router)
+app.include_router(vehicleRegistration.router)
 app.include_router(analytics_router)  # Router integrated from main
 app.include_router(auth_router)
 app.include_router(vehicle_router)  # Vehicle registration endpoints

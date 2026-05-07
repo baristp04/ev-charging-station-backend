@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List
 from app.database import get_session
@@ -9,9 +9,9 @@ router = APIRouter(prefix="/api/v1/vehicles", tags=["Vehicle Registration"])
 @router.post("/", response_model=Vehicle, status_code=status.HTTP_201_CREATED)
 def register_vehicle(vehicle: Vehicle, db: Session = Depends(get_session)):
     """
-    Sisteme yeni bir ara├ğ kaydeder. Plaka numaras─▒ (plateNumber) benzersiz olmal─▒d─▒r.
+    Sisteme yeni bir araç kaydeder. Plaka numarası (plateNumber) benzersiz olmalıdır.
     """
-    # Plaka kontrol├╝
+    # Plaka kontrolü
     statement = select(Vehicle).where(Vehicle.plateNumber == vehicle.plateNumber)
     existing_vehicle = db.exec(statement).first()
     
@@ -29,7 +29,7 @@ def register_vehicle(vehicle: Vehicle, db: Session = Depends(get_session)):
 @router.get("/driver/{driver_id}", response_model=List[Vehicle])
 def get_driver_vehicles(driver_id: int, db: Session = Depends(get_session)):
     """
-    Belirli bir s├╝r├╝c├╝ye (driver_id) ait kay─▒tl─▒ t├╝m ara├ğlar─▒ getirir.
+    Belirli bir sürücüye (driver_id) ait kayıtlı tüm araçları getirir.
     """
     statement = select(Vehicle).where(Vehicle.driver_id == driver_id)
     vehicles = db.exec(statement).all()
@@ -38,7 +38,7 @@ def get_driver_vehicles(driver_id: int, db: Session = Depends(get_session)):
 @router.get("/{vehicle_id}", response_model=Vehicle)
 def get_vehicle_details(vehicle_id: int, db: Session = Depends(get_session)):
     """
-    ID'ye g├Âre ara├ğ detaylar─▒n─▒ getirir.
+    ID'ye göre araç detaylarını getirir.
     """
     vehicle = db.get(Vehicle, vehicle_id)
     if not vehicle:
@@ -48,8 +48,8 @@ def get_vehicle_details(vehicle_id: int, db: Session = Depends(get_session)):
 @router.put("/{vehicle_id}", response_model=Vehicle)
 def update_vehicle(vehicle_id: int, updated_data: Vehicle, db: Session = Depends(get_session)):
     """
-    Mevcut bir arac─▒n bilgilerini g├╝nceller. 
-    Plaka numaras─▒ de─şi┼ştirilirse, yeni plakan─▒n sistemde benzersiz oldu─şu kontrol edilir.
+    Mevcut bir aracın bilgilerini günceller. 
+    Plaka numarası değiştirilirse, yeni plakanın sistemde benzersiz olduğu kontrol edilir.
     """
     vehicle = db.get(Vehicle, vehicle_id)
     if not vehicle:
@@ -79,7 +79,7 @@ def update_vehicle(vehicle_id: int, updated_data: Vehicle, db: Session = Depends
 @router.delete("/{vehicle_id}")
 def delete_vehicle(vehicle_id: int, db: Session = Depends(get_session)):
     """
-    Arac─▒ sistemden siler.
+    Aracı sistemden siler.
     """
     vehicle = db.get(Vehicle, vehicle_id)
     if not vehicle:

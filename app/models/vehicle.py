@@ -12,10 +12,10 @@ class Vehicle(SQLModel, table=True):
     model: str
     plateNumber: str = Field(unique=True)
     batteryCapacity: float
-    connectorType: str # Örn: 'Type 2'
+    connectorType: str # e.g. 'Type 2'
     
     driver_id: int = Field(foreign_key="evdriver.driverID")
     
     driver: "EVDriver" = Relationship(back_populates="vehicles")
-    # EKLENDİ: Aracın rezervasyon geçmişini görebilmek için
+    # Added: allows viewing vehicle reservation history
     reservations: List["Reservation"] = Relationship(back_populates="vehicle")

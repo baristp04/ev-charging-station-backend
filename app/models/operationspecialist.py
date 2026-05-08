@@ -10,7 +10,7 @@ class OperationsSpecialist(SQLModel, table=True):
     operatorID: Optional[int] = Field(default=None, primary_key=True)
     name: str
     email: str = Field(unique=True, index=True)
-    phone: str
+    phoneNumber: str
     passwordHash: str
     is_admin: bool = Field(default=True)  # Operations specialists are always admins
 

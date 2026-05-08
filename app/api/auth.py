@@ -1,6 +1,7 @@
 # auth.py
 # Authentication endpoints: login, register, logout.
 # Validates email format, phone format, and password strength on registration.
+# Dynamically assigns users to the correct table (Driver, Analyst, Specialist, Technician) based on their selected role.
 
 from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, select
@@ -32,6 +33,7 @@ class RegisterRequest(BaseModel):
     email: str
     phoneNumber: str
     password: str
+    role: str = "driver"  # Frontend'den gelen rol bilgisi eklendi
 
     @field_validator('name')
     @classmethod
@@ -126,34 +128,58 @@ def login(request: LoginRequest):
 
 @auth_router.post("/register", response_model=UserResponse)
 def register(request: RegisterRequest):
-    """Register a new EV driver account with validated fields.
-       Admins are added manually via DB, not through this endpoint.
-    """
+    """Register a new user to the correct table based on their selected role."""
     with Session(engine) as session:
+        
+        # 1. Seçilen role göre hangi Modeli (Tabloyu) kullanacağımızı belirliyoruz
+        model_class = EVDriver
+        is_admin = False
+        
+        if request.role == "analyst":
+            model_class = SystemAnalyst
+            is_admin = True
+        elif request.role == "specialist":
+            model_class = OperationsSpecialist
+            is_admin = True
+        elif request.role == "technician":
+            model_class = EVTechnician
+            is_admin = False
+
+        # 2. Belirlenen tabloda bu mail adresi zaten var mı kontrol et
         existing = session.exec(
-            select(EVDriver).where(EVDriver.email == request.email)
+            select(model_class).where(model_class.email == request.email)
         ).first()
 
         if existing:
             raise HTTPException(status_code=400, detail="This email address is already registered.")
 
-        driver = EVDriver(
+        hashed_pw = hash_password(request.password)
+
+        # 3. İlgili modele ait kullanıcıyı oluştur
+        new_user = model_class(
             name=request.name,
             email=request.email,
             phoneNumber=request.phoneNumber,
-            passwordHash=hash_password(request.password),
-            is_admin=False  # New registrations can never be admin by default
+            passwordHash=hashed_pw,
+            is_admin=is_admin
         )
-        session.add(driver)
+        
+        session.add(new_user)
         session.commit()
-        session.refresh(driver)
+        session.refresh(new_user)
+
+        # 4. Doğru ID'yi dinamik olarak çek (Hangi tabloya kayıt edildiyse)
+        user_id = getattr(new_user, 'driverID',
+                  getattr(new_user, 'analystID',
+                  getattr(new_user, 'specialistID',
+                  getattr(new_user, 'technicianID', getattr(new_user, 'id', 0)))))
 
         return UserResponse(
-            driverID=driver.driverID,
-            name=driver.name,
-            email=driver.email,
-            phoneNumber=driver.phoneNumber,
-            is_admin=False
+            driverID=user_id,
+            name=new_user.name,
+            email=new_user.email,
+            phoneNumber=new_user.phoneNumber,
+            is_admin=is_admin
         )
 
 @auth_router.post("/logout")

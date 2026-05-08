@@ -7,7 +7,7 @@ import hashlib
 # ── Modellerin İçeri Aktarılması ──
 from app.models.driver import EVDriver
 from app.models.SystemAnalyst import SystemAnalyst
-from app.models.operationspecialist import OperationSpecialist
+from app.models.operationspecialist import OperationsSpecialist
 from app.models.EVTechnician import EVTechnician
 
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -61,7 +61,7 @@ def login(request: LoginRequest):
 
         # 3. Operasyon Uzmanlarında Ara (Yönetici)
         if not user:
-            user = session.exec(select(OperationSpecialist).where(OperationSpecialist.email == request.email)).first()
+            user = session.exec(select(OperationsSpecialist).where(OperationsSpecialist.email == request.email)).first()
             if user:
                 is_admin = True
 

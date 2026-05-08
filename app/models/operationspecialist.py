@@ -4,8 +4,6 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.station import ChargingStation
 
-#ismi OperationsSpecialist olamadigi icin ozur dilerim büyük harfle yapinca alakasiz bir yerde error veriyordu
-
 class OperationsSpecialist(SQLModel, table=True):
     __tablename__ = "operationspecialist"
 
@@ -14,7 +12,7 @@ class OperationsSpecialist(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phone: str
     passwordHash: str
-    is_admin: bool = Field(default=True)
+    is_admin: bool = Field(default=True)  # Operations specialists are always admins
 
-    # Relationship: An Operations Specialist manages multiple Charging Stations
+    # Relationship: An operations specialist manages multiple charging stations
     managed_stations: List["ChargingStation"] = Relationship(back_populates="operator")

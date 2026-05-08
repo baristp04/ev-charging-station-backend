@@ -1,7 +1,7 @@
 # auth.py
 # Authentication endpoints: login, register, logout.
 # Validates email format, phone format, and password strength on registration.
-# Dynamically assigns users to the correct table (Driver, Analyst, Specialist, Technician) based on their selected role.
+# Only EVDriver self-registration is allowed — staff accounts are created by system administrators.
 
 from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, select
@@ -33,7 +33,7 @@ class RegisterRequest(BaseModel):
     email: str
     phoneNumber: str
     password: str
-    role: str = "driver"  # Frontend'den gelen rol bilgisi eklendi
+    role: str = "driver"  # Only "driver" is accepted for self-registration
 
     @field_validator('name')
     @classmethod
@@ -97,7 +97,7 @@ def login(request: LoginRequest):
             if user:
                 is_admin = True
 
-        # 3. Check OperationSpecialist table (admin)
+        # 3. Check OperationsSpecialist table (admin)
         if not user:
             user = session.exec(select(OperationsSpecialist).where(OperationsSpecialist.email == request.email.lower().strip())).first()
             if user:
@@ -128,58 +128,45 @@ def login(request: LoginRequest):
 
 @auth_router.post("/register", response_model=UserResponse)
 def register(request: RegisterRequest):
-    """Register a new user to the correct table based on their selected role."""
-    with Session(engine) as session:
-        
-        # 1. Seçilen role göre hangi Modeli (Tabloyu) kullanacağımızı belirliyoruz
-        model_class = EVDriver
-        is_admin = False
-        
-        if request.role == "analyst":
-            model_class = SystemAnalyst
-            is_admin = True
-        elif request.role == "specialist":
-            model_class = OperationsSpecialist
-            is_admin = True
-        elif request.role == "technician":
-            model_class = EVTechnician
-            is_admin = False
+    """Register a new EVDriver account. Self-registration is restricted to drivers only.
+    Staff and admin accounts (analyst, specialist, technician) must be created by system administrators."""
 
-        # 2. Belirlenen tabloda bu mail adresi zaten var mı kontrol et
+    # Block self-registration for admin/staff roles
+    if request.role in ("analyst", "specialist", "technician"):
+        raise HTTPException(
+            status_code=403,
+            detail="Self-registration is only available for drivers. Staff accounts are created by system administrators."
+        )
+
+    with Session(engine) as session:
+
+        # Check if email is already registered in the EVDriver table
         existing = session.exec(
-            select(model_class).where(model_class.email == request.email)
+            select(EVDriver).where(EVDriver.email == request.email)
         ).first()
 
         if existing:
             raise HTTPException(status_code=400, detail="This email address is already registered.")
 
-        hashed_pw = hash_password(request.password)
-
-        # 3. İlgili modele ait kullanıcıyı oluştur
-        new_user = model_class(
+        # Create new EVDriver — self-registered users are never admins
+        new_user = EVDriver(
             name=request.name,
             email=request.email,
             phoneNumber=request.phoneNumber,
-            passwordHash=hashed_pw,
-            is_admin=is_admin
+            passwordHash=hash_password(request.password),
+            is_admin=False
         )
-        
+
         session.add(new_user)
         session.commit()
         session.refresh(new_user)
 
-        # 4. Doğru ID'yi dinamik olarak çek (Hangi tabloya kayıt edildiyse)
-        user_id = getattr(new_user, 'driverID',
-                  getattr(new_user, 'analystID',
-                  getattr(new_user, 'specialistID',
-                  getattr(new_user, 'technicianID', getattr(new_user, 'id', 0)))))
-
         return UserResponse(
-            driverID=user_id,
+            driverID=new_user.driverID,
             name=new_user.name,
             email=new_user.email,
             phoneNumber=new_user.phoneNumber,
-            is_admin=is_admin
+            is_admin=False
         )
 
 @auth_router.post("/logout")

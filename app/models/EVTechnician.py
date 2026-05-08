@@ -15,6 +15,7 @@ class EVTechnician(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phone: str
     passwordHash: str
+    is_admin: bool = Field(default=False)
 
     # Relationship: An EV Technician performs many maintenance activities
  #   maintenance_records: List["MaintenanceRecord"] = Relationship(back_populates="technician")

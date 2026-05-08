@@ -14,6 +14,7 @@ class OperationsSpecialist(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phone: str
     passwordHash: str
+    is_admin: bool = Field(default=True)
 
     # Relationship: An Operations Specialist manages multiple Charging Stations
     managed_stations: List["ChargingStation"] = Relationship(back_populates="operator")

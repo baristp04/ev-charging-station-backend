@@ -9,6 +9,7 @@ class SystemAnalyst(SQLModel, table=True):
     name: str
     email: str = Field(unique=True, index=True)
     passwordHash: str
+    is_admin: bool = Field(default=True)
 
     #
     # If you look at the UML diagram, the System Analyst "monitors" the Charging Stations.

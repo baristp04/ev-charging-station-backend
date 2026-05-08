@@ -30,6 +30,7 @@ class UserResponse(BaseModel):
     name: str
     email: str
     phoneNumber: str
+    is_admin: bool
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,8 @@ def login(request: LoginRequest):
             driverID=driver.driverID,
             name=driver.name,
             email=driver.email,
-            phoneNumber=driver.phoneNumber
+            phoneNumber=driver.phoneNumber,
+            is_admin=driver.is_admin
         )
 
 @auth_router.post("/register", response_model=UserResponse)
@@ -77,7 +79,8 @@ def register(request: RegisterRequest):
             driverID=driver.driverID,
             name=driver.name,
             email=driver.email,
-            phoneNumber=driver.phoneNumber
+            phoneNumber=driver.phoneNumber,
+            is_admin=driver.is_admin
         )
 
 @auth_router.post("/logout")

@@ -12,6 +12,9 @@ class EVDriver(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phoneNumber: str
     passwordHash: str
+
+    #Yetkilendirme
+    is_admin: bool = Field(default=False)
     
     # İlişkiler
     vehicles: List["Vehicle"] = Relationship(back_populates="driver")

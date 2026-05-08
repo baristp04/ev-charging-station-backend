@@ -8,6 +8,7 @@ class SystemAnalyst(SQLModel, table=True):
     analystID: Optional[int] = Field(default=None, primary_key=True)
     name: str
     email: str = Field(unique=True, index=True)
+    phoneNumber: str
     passwordHash: str
     is_admin: bool = Field(default=True)
 

@@ -11,6 +11,20 @@ from app.models.charger import Charger
 station_router = APIRouter(prefix="/api/stations", tags=["Stations"])
 
 
+def expire_old_reservations(session: Session):
+    """Mark all active reservations whose endTime has passed as expired."""
+    now = datetime.now(timezone.utc)
+    active = session.exec(
+        select(Reservation).where(Reservation.status == "active")
+    ).all()
+    for r in active:
+        end = r.endTime if r.endTime.tzinfo else r.endTime.replace(tzinfo=timezone.utc)
+        if end < now:
+            r.status = "expired"
+            session.add(r)
+    session.commit()
+
+
 @station_router.get("/")
 def get_stations(session: Session = Depends(get_session)):
     # Return all charging stations with their current state
@@ -30,8 +44,10 @@ def get_station_chargers(station_id: int, session: Session = Depends(get_session
 @station_router.post("/reserve")
 def create_reservation(reservation_data: Reservation, session: Session = Depends(get_session)):
 
+    # Expire outdated reservations before overlap check
+    expire_old_reservations(session)
+
     # Convert incoming string values to Python datetime objects
-    # This must happen before any validation checks
     if isinstance(reservation_data.startTime, str):
         reservation_data.startTime = datetime.fromisoformat(reservation_data.startTime)
     if isinstance(reservation_data.endTime, str):
@@ -64,6 +80,7 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
         raise HTTPException(status_code=400, detail="Vehicle and charger connector types are incompatible.")
 
     # Check for overlapping active reservations on the same charger
+    # Expired reservations are excluded — they no longer block the slot
     overlapping = session.exec(
         select(Reservation).where(
             Reservation.charger_id == reservation_data.charger_id,
@@ -86,11 +103,14 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
 
 @station_router.get("/my-reservations/{driver_id}")
 def get_my_reservations(driver_id: int, session: Session = Depends(get_session)):
-    # Fetch all active reservations belonging to the given driver
+    # Auto-expire outdated reservations before returning the list
+    expire_old_reservations(session)
+
+    # Fetch all non-cancelled reservations for this driver
     reservations = session.exec(
         select(Reservation).where(
             Reservation.driver_id == driver_id,
-            Reservation.status == "active"
+            Reservation.status != "cancelled"
         )
     ).all()
 
@@ -98,8 +118,6 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
     for r in reservations:
         charger = session.get(Charger, r.charger_id)
         vehicle = session.get(Vehicle, r.vehicle_id)
-
-        # Retrieve the station associated with this charger
         station = session.get(ChargingStation, charger.station_id) if charger else None
 
         result.append({
@@ -107,7 +125,7 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
             "date": r.date,
             "startTime": r.startTime,
             "endTime": r.endTime,
-            "status": r.status,
+            "status": r.status,  # "active" | "expired"
             "charger_id": r.charger_id,
             "chargerType": charger.type if charger else None,
             "connectorType": charger.connectorType if charger else None,
@@ -122,14 +140,15 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
 
 @station_router.delete("/reservations/{reservation_id}")
 def cancel_reservation(reservation_id: int, session: Session = Depends(get_session)):
-    # Check if the reservation exists
     reservation = session.get(Reservation, reservation_id)
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found.")
 
-    # Prevent cancelling an already cancelled reservation
-    if reservation.status != "active":
+    # Prevent cancelling an already cancelled or expired reservation
+    if reservation.status == "cancelled":
         raise HTTPException(status_code=400, detail="This reservation is already cancelled.")
+    if reservation.status == "expired":
+        raise HTTPException(status_code=400, detail="This reservation has already expired and cannot be cancelled.")
 
     # Soft delete — mark as cancelled instead of removing the record
     reservation.status = "cancelled"

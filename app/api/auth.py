@@ -1,8 +1,3 @@
-# auth.py
-# Authentication endpoints: login, register, logout.
-# Validates email format, phone format, and password strength on registration.
-# Only EVDriver self-registration is allowed — staff accounts are created by system administrators.
-
 from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, select
 from app.database import engine
@@ -33,7 +28,7 @@ class RegisterRequest(BaseModel):
     email: str
     phoneNumber: str
     password: str
-    role: str = "driver"  # Only "driver" is accepted for self-registration
+    role: str = "driver"  # Sadece "driver" dışarıdan kayda açık
 
     @field_validator('name')
     @classmethod
@@ -70,68 +65,62 @@ class RegisterRequest(BaseModel):
         return v
 
 class UserResponse(BaseModel):
-    # Return ID as driverID so frontend stays consistent regardless of user role
+    # Frontend'in bozulmaması için ID'yi "driverID" adıyla dönüyoruz
     driverID: int
     name: str
     email: str
     phoneNumber: str
-    is_admin: bool
+    role: str  # YENİ: is_admin tamamen kaldırıldı, sadece rol dönüyoruz
 
 # -- Endpoints ----------------------------------------------------------------
 
 @auth_router.post("/login", response_model=UserResponse)
 def login(request: LoginRequest):
-    """Search all role tables in order and authenticate the matching user."""
+    """Sırayla tüm tabloları tarar ve bulduğu kullanıcının veritabanındaki rolünü döndürür."""
     with Session(engine) as session:
         user = None
-        is_admin = False
 
-        # 1. Check EVDriver table first (most common login type)
+        # 1. EVDriver Tablosu (En sık giriş yapacak kitle)
         user = session.exec(select(EVDriver).where(EVDriver.email == request.email.lower().strip())).first()
-        if user:
-            is_admin = getattr(user, 'is_admin', False)
 
-        # 2. Check SystemAnalyst table (admin)
+        # 2. SystemAnalyst Tablosu
         if not user:
             user = session.exec(select(SystemAnalyst).where(SystemAnalyst.email == request.email.lower().strip())).first()
-            if user:
-                is_admin = True
 
-        # 3. Check OperationsSpecialist table (admin)
+        # 3. OperationsSpecialist Tablosu
         if not user:
             user = session.exec(select(OperationsSpecialist).where(OperationsSpecialist.email == request.email.lower().strip())).first()
-            if user:
-                is_admin = True
 
-        # 4. Check EVTechnician table (field staff, not admin)
+        # 4. EVTechnician Tablosu
         if not user:
             user = session.exec(select(EVTechnician).where(EVTechnician.email == request.email.lower().strip())).first()
-            if user:
-                is_admin = False
 
+        # Kullanıcı bulunamadıysa veya şifre eşleşmiyorsa
         if not user or getattr(user, 'passwordHash', '') != hash_password(request.password):
             raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-        # Use getattr to handle different ID field names across models
+        # Modellerdeki farklı ID isimlerini dinamik olarak yakalıyoruz
         user_id = getattr(user, 'driverID',
                   getattr(user, 'analystID',
-                  getattr(user, 'specialistID',
+                  getattr(user, 'operatorID',  # Dikkat: specialistID yerine senin modelindeki operatorID'yi kullandık
                   getattr(user, 'technicianID', getattr(user, 'id', 0)))))
 
         return UserResponse(
             driverID=user_id,
-            name=getattr(user, 'name', 'Unknown User'),
+            name=user.name,
             email=user.email,
-            phoneNumber=getattr(user, 'phoneNumber', ''),
-            is_admin=is_admin
+            phoneNumber=user.phoneNumber,
+            role=user.role  # Rol doğrudan veritabanından okunarak Frontend'e gidiyor
         )
 
 @auth_router.post("/register", response_model=UserResponse)
 def register(request: RegisterRequest):
-    """Register a new EVDriver account. Self-registration is restricted to drivers only.
-    Staff and admin accounts (analyst, specialist, technician) must be created by system administrators."""
+    """
+    Sadece EVDriver (Sürücü) kaydına izin verir.
+    Personel hesapları sistem yöneticileri tarafından oluşturulur.
+    """
 
-    # Block self-registration for admin/staff roles
+    # Güvenlik: Dışarıdan personel rolüyle kayıt olmayı engelle
     if request.role in ("analyst", "specialist", "technician"):
         raise HTTPException(
             status_code=403,
@@ -139,8 +128,6 @@ def register(request: RegisterRequest):
         )
 
     with Session(engine) as session:
-
-        # Check if email is already registered in the EVDriver table
         existing = session.exec(
             select(EVDriver).where(EVDriver.email == request.email)
         ).first()
@@ -148,13 +135,13 @@ def register(request: RegisterRequest):
         if existing:
             raise HTTPException(status_code=400, detail="This email address is already registered.")
 
-        # Create new EVDriver — self-registered users are never admins
+        # Yeni sürücü, rolü 'driver' olarak oluşturuluyor
         new_user = EVDriver(
             name=request.name,
             email=request.email,
             phoneNumber=request.phoneNumber,
             passwordHash=hash_password(request.password),
-            is_admin=False
+            role="driver"  # YENİ: is_admin=False yerine rol ataması yapıyoruz
         )
 
         session.add(new_user)
@@ -166,7 +153,7 @@ def register(request: RegisterRequest):
             name=new_user.name,
             email=new_user.email,
             phoneNumber=new_user.phoneNumber,
-            is_admin=False
+            role=new_user.role
         )
 
 @auth_router.post("/logout")

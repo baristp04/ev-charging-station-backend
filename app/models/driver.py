@@ -1,20 +1,16 @@
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Field, Relationship
 from typing import List, Optional, TYPE_CHECKING
+from app.models.base_user import UserBase
 
 if TYPE_CHECKING:
     from app.models.vehicle import Vehicle
     from app.models.reservation import Reservation
     from app.models.notification import Notification
 
-class EVDriver(SQLModel, table=True):
+class EVDriver(UserBase, table=True):
     __tablename__ = "evdriver"
 
     driverID: Optional[int] = Field(default=None, primary_key=True)
-    name: str
-    email: str = Field(unique=True, index=True)
-    phoneNumber: str
-    passwordHash: str
-    is_admin: bool = Field(default=False)  # Drivers are never admins by default
 
     # Relationships
     vehicles: List["Vehicle"] = Relationship(back_populates="driver")

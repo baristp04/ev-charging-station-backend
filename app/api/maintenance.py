@@ -5,6 +5,8 @@ from app.database import get_session
 from app.models.charger import Charger
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession
+from datetime import datetime, timezone
+from datetime import timedelta
 
 # Router Tanımı
 maintenance_router = APIRouter(prefix="/api/maintenance", tags=["Station Maintenance"])
@@ -30,14 +32,23 @@ def schedule_maintenance(charger_id: int, start_time: datetime, session: Session
     # Bakım zamanını kaydet
     charger.maintenanceStartTime = start_time
 
+    # Şimdiki zamanı al (UTC kullanıyorsanız utcnow, yerel ise now)
+    current_time = datetime.now(timezone.utc)
+
     if active_session:
-        # Main Action: If a session is active, the system delays maintenance.
+        # Durum 1: Şu an araç şarj oluyor -> Ertele
         charger.status = "maintenance_delayed"
         charger.maintenanceNotes = f"LOG: Aktif seans (ID: {active_session.sessionID}) nedeniyle bakım bitime ertelendi."
+    elif start_time > current_time:
+        # Durum 2: Bakım ileri bir tarihe planlandı -> Hemen kapatma!
+        # Mesajı Türkiye saatine (UTC+3) çevirerek göster
+        local_time = start_time + timedelta(hours=3)
+        charger.status = "available"
+        charger.maintenanceNotes = f"LOG: Bakım {local_time.strftime('%d/%m/%Y %H:%M')} tarihi için sisteme planlandı."
     else:
-        # Main Action: System updates the charger status to "Offline".
+        # Durum 3: Bakım zamanı geldi ve aktif seans yok -> Çevrimdışı yap
         charger.status = "offline"
-        charger.maintenanceNotes = f"LOG: Bakım planlandığı gibi başlatıldı."
+        charger.maintenanceNotes = "LOG: Bakım planlandığı gibi başlatıldı."
 
     session.add(charger)
     session.commit()

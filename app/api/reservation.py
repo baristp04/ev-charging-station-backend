@@ -1,11 +1,15 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
 from datetime import datetime, timedelta, timezone
+
+from app.api.navigation import check_and_activate_maintenance
 from app.models.station import ChargingStation
 from app.database import get_session
 from app.models.reservation import Reservation
 from app.models.vehicle import Vehicle
 from app.models.charger import Charger
+from datetime import datetime, timezone
+from sqlmodel import select
 
 # UC-01: Charging Reservation Management
 station_router = APIRouter(prefix="/api/stations", tags=["Stations"])
@@ -28,12 +32,14 @@ def expire_old_reservations(session: Session):
 @station_router.get("/")
 def get_stations(session: Session = Depends(get_session)):
     # Return all charging stations with their current state
+    check_and_activate_maintenance(session)
     stations = session.exec(select(ChargingStation)).all()
     return stations
 
 
 @station_router.get("/{station_id}/chargers")
 def get_station_chargers(station_id: int, session: Session = Depends(get_session)):
+    check_and_activate_maintenance(session)
     station = session.get(ChargingStation, station_id)
     if not station:
         raise HTTPException(status_code=404, detail="Station not found.")

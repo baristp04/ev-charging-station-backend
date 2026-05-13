@@ -42,12 +42,19 @@ def get_stations(session: Session = Depends(get_session)):
 
 @station_router.get("/{station_id}/chargers")
 def get_station_chargers(station_id: int, session: Session = Depends(get_session)):
-    check_and_activate_maintenance(session)
+    # 1. PERFORMANS: Her GET isteğinde tüm sistemi kilitlememesi için bakım kontrolünü yoruma alıyoruz.
+    # check_and_activate_maintenance(session)
+    
+    # 2. HATA KONTROLÜ (KIRPILMADI): İstasyon gerçekten var mı diye bakıyoruz.
     station = session.get(ChargingStation, station_id)
     if not station:
         raise HTTPException(status_code=404, detail="Station not found.")
-    # Return all chargers linked to this station
-    return station.chargers
+    
+    # 3. OPTİMİZASYON: "station.chargers" (tembel yükleme) kullanmak yerine,
+    # doğrudan Charger tablosundan bu istasyona ait olanları tek seferde çekiyoruz.
+    chargers = session.exec(select(Charger).where(Charger.station_id == station_id)).all()
+    
+    return chargers
 
 
 @station_router.post("/reserve")
@@ -143,6 +150,12 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
 
 @station_router.get("/my-reservations/{driver_id}")
 def get_my_reservations(driver_id: int, session: Session = Depends(get_session)):
+
+    # ── YENİ: SÜRÜCÜ KONTROLÜ (Güvenlik Adımı) ──
+    driver = session.get(EVDriver, driver_id)
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found.")
+    
     # Auto-expire outdated reservations before returning the list
     expire_old_reservations(session)
 

@@ -5,6 +5,31 @@ from app.models.station import ChargingStation
 from app.models.charger import Charger
 from app.database import get_session
 from typing import Optional
+from datetime import datetime, timezone
+from sqlmodel import select
+
+
+def check_and_activate_maintenance(session: Session):
+    """Lazy evaluation: Checks if any scheduled maintenance should start right now."""
+    now = datetime.now(timezone.utc)
+
+    # Find chargers that are 'available' but their maintenance time has arrived/passed
+    pending_chargers = session.exec(
+        select(Charger).where(
+            Charger.status == "available",
+            Charger.maintenanceStartTime != None,
+            Charger.maintenanceStartTime <= now
+        )
+    ).all()
+
+    for c in pending_chargers:
+        c.status = "offline"
+        c.maintenanceNotes = "LOG: Planlanan bakım zamanı geldi, cihaz otomatik çevrimdışı yapıldı."
+        session.add(c)
+
+    if pending_chargers:
+        session.commit()
+
 
 navigation_router = APIRouter(prefix="/api/navigation", tags=["Navigation"])
 
@@ -32,6 +57,7 @@ def get_charger_summary(station_id: int, session: Session):
 
 @navigation_router.get("/stations")
 def get_stations_for_map(session: Session = Depends(get_session)):
+    check_and_activate_maintenance(session)
     stations = session.exec(select(ChargingStation)).all()
     result = []
     for s in stations:

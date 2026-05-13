@@ -17,6 +17,7 @@ from app.api.vehicleRegistration import router as vehicle_router
 from app.api.payment import router as payment_router
 from app.api.notification import router as notification_router
 from app.api.report import router as report_router
+from app.api.favorites import router as favorites_router
 
 
 
@@ -33,6 +34,7 @@ from app.models.SystemAnalyst import SystemAnalyst
 from app.models.EVTechnician import EVTechnician                 
 from app.models.notification import Notification
 from app.models.report import Report                 
+from app.models.favorite import Favorite
 
 # Lifespan event handler (recommended over on_event in modern FastAPI)
 @asynccontextmanager
@@ -67,6 +69,7 @@ app.include_router(vehicle_router)  # Vehicle registration endpoints
 app.include_router(payment_router)
 app.include_router(notification_router)
 app.include_router(report_router)
+app.include_router(favorites_router, prefix="/api/favorites", tags=["favorites"])
 
 @app.get("/")
 def root():

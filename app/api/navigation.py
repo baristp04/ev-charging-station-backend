@@ -1,8 +1,10 @@
+from app.models.favorites import FavoriteStation
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
 from app.models.station import ChargingStation
 from app.models.charger import Charger
 from app.database import get_session
+from typing import Optional
 from datetime import datetime, timezone
 from sqlmodel import select
 
@@ -71,7 +73,6 @@ def get_stations_for_map(session: Session = Depends(get_session)):
             "available_chargers": available
         })
     return result
-
 
 @navigation_router.get("/stations/{station_id}")
 def get_station_detail(station_id: int, session: Session = Depends(get_session)):

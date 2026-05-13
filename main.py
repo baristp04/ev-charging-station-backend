@@ -14,6 +14,11 @@ import os
 from pathlib import Path  # Library used for safe and cross-platform path handling
 from app.api.auth import auth_router
 from app.api.vehicleRegistration import router as vehicle_router
+from app.api.payment import router as payment_router
+from app.api.notification import router as notification_router
+from app.api.report import router as report_router
+
+
 
 # Import all models (including the ones newly added in main)
 from app.models.driver import EVDriver
@@ -26,7 +31,8 @@ from app.models.session import ChargingSession
 from app.models.payment import Payment
 from app.models.SystemAnalyst import SystemAnalyst               
 from app.models.EVTechnician import EVTechnician                 
-from app.models.notification import Notification                 
+from app.models.notification import Notification
+from app.models.report import Report                 
 
 # Lifespan event handler (recommended over on_event in modern FastAPI)
 @asynccontextmanager
@@ -58,6 +64,9 @@ app.include_router(vehicleRegistration.router)
 app.include_router(analytics_router)  # Router integrated from main
 app.include_router(auth_router)
 app.include_router(vehicle_router)  # Vehicle registration endpoints
+app.include_router(payment_router)
+app.include_router(notification_router)
+app.include_router(report_router)
 
 @app.get("/")
 def root():

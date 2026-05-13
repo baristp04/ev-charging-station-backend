@@ -16,6 +16,7 @@ class Reservation(SQLModel, table=True):
     startTime: datetime
     endTime: datetime
     status: str = Field(default="active")
+    estimated_cost: float = Field(default=0.0)
     
     # 1. Veritabanı Sütunları (Foreign Keys)
     driver_id: int = Field(foreign_key="evdriver.driverID")

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlmodel import Session, select
+from sqlalchemy.orm import joinedload
+from sqlmodel import select, Session
 from datetime import datetime, timedelta, timezone
 
 from app.api.navigation import check_and_activate_maintenance
@@ -145,26 +146,33 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
     # Auto-expire outdated reservations before returning the list
     expire_old_reservations(session)
 
-    # Fetch all non-cancelled reservations for this driver
-    reservations = session.exec(
-        select(Reservation).where(
+    # ── OPTİMİZE EDİLMİŞ N+1 ÇÖZÜMÜ (JOIN SORGUSU) ──
+    # SQLModel (SQLAlchemy altyapısı) ile Reservation tablosunu çekerken, 
+    # ona bağlı olan Charger, Vehicle ve Station tablolarını TEK BİR SORGUDAYKEN birleştiriyoruz.
+    
+    query = (
+        select(Reservation, Charger, Vehicle, ChargingStation)
+        .join(Charger, Reservation.charger_id == Charger.chargerID, isouter=True)
+        .join(Vehicle, Reservation.vehicle_id == Vehicle.vehicleID, isouter=True)
+        .join(ChargingStation, Charger.station_id == ChargingStation.stationID, isouter=True)
+        .where(
             Reservation.driver_id == driver_id,
             Reservation.status != "cancelled"
         )
-    ).all()
+    )
+    
+    # Tüm veriyi 150 sorgu yerine SADECE 1 SORGUDAN çektik!
+    results = session.exec(query).all()
 
-    result = []
-    for r in reservations:
-        charger = session.get(Charger, r.charger_id)
-        vehicle = session.get(Vehicle, r.vehicle_id)
-        station = session.get(ChargingStation, charger.station_id) if charger else None
-
-        result.append({
+    formatted_result = []
+    # results içindeki her bir satır (tuple), o dört tablonun birleşmiş halini tutar
+    for r, charger, vehicle, station in results:
+        formatted_result.append({
             "reservationID": r.reservationID,
             "date": r.date,
             "startTime": r.startTime,
             "endTime": r.endTime,
-            "status": r.status,  # "active" | "expired"
+            "status": r.status,  
             "charger_id": r.charger_id,
             "chargerType": charger.type if charger else None,
             "connectorType": charger.connectorType if charger else None,
@@ -174,7 +182,7 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
             "vehicleBrand": vehicle.brand if vehicle else None,
         })
 
-    return result
+    return formatted_result
 
 
 @station_router.delete("/reservations/{reservation_id}")

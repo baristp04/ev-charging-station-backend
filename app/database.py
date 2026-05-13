@@ -25,6 +25,8 @@ if DATABASE_URL.startswith("postgres://"):
 engine = create_engine(
     DATABASE_URL, 
     echo=True, 
+    pool_pre_ping=True,  # Her sorgudan önce bağlantıyı test eder
+    pool_recycle=300,    # 5 dakikada bir bağlantıları yeniler
     connect_args={"sslmode": "require"} 
 )
 

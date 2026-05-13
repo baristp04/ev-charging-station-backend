@@ -6,6 +6,8 @@ from app.database import get_session
 from app.models.reservation import Reservation
 from app.models.vehicle import Vehicle
 from app.models.charger import Charger
+from app.models.driver import EVDriver
+from app.utils.notifications import create_system_notification 
 
 # UC-01: Charging Reservation Management
 station_router = APIRouter(prefix="/api/stations", tags=["Stations"])
@@ -92,11 +94,42 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
 
     if overlapping:
         raise HTTPException(status_code=409, detail="This charger is already reserved for the selected time slot.")
+    
+    # Find driver
+    driver = session.get(EVDriver, reservation_data.driver_id)
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found.")
+
+    # estimated_cost comes from front-end
+    cost = reservation_data.estimated_cost
+    cleaned_cost = float(str(cost).replace('₺', '').replace(',', '.').strip())
+
+    # Check 
+    if driver.balance < cleaned_cost:
+        # 402 Payment Required
+        raise HTTPException(
+            status_code=402, 
+            detail=f"Insufficient balance. Cost: ₺{cost}, Your Balance: ₺{driver.balance}"
+        )
+
+    # Payment
+    driver.balance -= cleaned_cost
+    session.add(driver) # Update balance
+
+    reservation_data.estimated_cost = cleaned_cost
 
     # All checks passed — save reservation to database
     session.add(reservation_data)
     session.commit()
-    session.refresh(reservation_data)
+    session.refresh(reservation_data) 
+
+    # Rezervasyon başarıyla kaydedildikten sonra:
+    create_system_notification(
+        session, 
+        driver_id=reservation_data.driver_id, 
+        n_type="reservation", 
+        message=f"New reservation created for {reservation_data.date}!"
+    )
 
     return {"message": "Reservation created successfully.", "data": reservation_data}
 

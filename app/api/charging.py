@@ -19,7 +19,7 @@ def start_session(reservation_id: int, db: Session = Depends(get_session)):
     # Rezervasyon kontrolü
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
-        raise HTTPException(status_code=404, detail="Rezervasyon bulunamadı.")
+        raise HTTPException(status_code=404, detail="Reservation is not found")
 
     new_session = ChargingSession(
         reservation_id=reservation_id,
@@ -36,40 +36,37 @@ from datetime import datetime, timezone, timedelta
 
 @router.get("/{session_id}/status")
 def get_session_status(session_id: int, db: Session = Depends(get_session)):
-    session_obj = db.get(ChargingSession, session_id)
+   
+    session_obj = db.exec(
+    select(ChargingSession).where(ChargingSession.sessionID == session_id)
+).first()
     if not session_obj:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadı.")
+        raise HTTPException(status_code=404, detail="Session is not found")
 
-    # 1. Zaman Farkını Bul (Dakika cinsinden)
     now = datetime.now(timezone.utc)
     start_time = session_obj.startTime.replace(tzinfo=timezone.utc) if session_obj.startTime.tzinfo is None else session_obj.startTime
     elapsed_seconds = (now - start_time).total_seconds()
-    elapsed_minutes = int(elapsed_seconds / 60)
-
-    # 2. Otomatik Tüketim Simülasyonu (Örn: Dakikada 0.5 kWh harcandığını varsayalım)
-    # Gerçek hayatta bu değer Charger'ın powerOutput değerine bağlıdır (Örn: 22kW / 60 dk)
+    
+    # Simülasyon Verileri
     power_output = session_obj.reservation.charger.powerOutput if session_obj.reservation else 22.0
-    kwh_per_minute = power_output / 60
-    
-    # Simüle edilen tüketim:
-    simulated_energy = (elapsed_seconds / 3600) * power_output # Saatlik oran üzerinden net hesap
-    
-    # 3. Maliyet Hesaplama
+    simulated_energy = (elapsed_seconds / 3600) * power_output
     price_per_kwh = session_obj.reservation.charger.pricePerKwh if session_obj.reservation else 0.0
     current_cost = simulated_energy * price_per_kwh
+
+    # YÜZDE HESABI: Arabanın 0'dan 100'e 2 saatte dolduğunu varsayalım (120 dk)
+    # Veya arabanın batarya kapasitesine göre oranlayabilirsin.
+    total_estimated_time = 120 # 2 saatlik simülasyon
+    progress_percentage = min(100, int((elapsed_seconds / (total_estimated_time * 60)) * 100))
 
     return {
         "sessionID": session_id,
         "status": session_obj.status,
-        "simulation": "Active (Real-time calculation)",
-        "energyConsumed": f"{simulated_energy:.4f} kWh",
-        "currentCost": f"{current_cost:.2f} TL",
-        "elapsedTime": f"{elapsed_minutes} dakika",
-        "remainingTime": max(0, 120 - elapsed_minutes),
-        "details": {
-            "chargerPower": f"{power_output} kW",
-            "unitPrice": f"{price_per_kwh} TL/kWh"
-        }
+        "percentage": progress_percentage, # EKLENDİ
+        "energyConsumed": round(simulated_energy, 2),
+        "currentCost": round(current_cost, 2),
+        "elapsedTime": int(elapsed_seconds / 60),
+        "remainingTime": max(0, total_estimated_time - int(elapsed_seconds / 60)),
+        "chargerPower": power_output
     }
 
 @router.post("/{session_id}/stop")
@@ -77,7 +74,7 @@ def stop_charging(session_id: int, reason: str = "completed", db: Session = Depe
     # 1. Oturumu ID ile biz bulalım, Swagger'dan obje istemeyelim
     session_obj = db.get(ChargingSession, session_id)
     if not session_obj:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadı.")
+        raise HTTPException(status_code=404, detail="Session is not found")
 
     # 2. Zamanı ve tüketimi otomatiğe bağlayalım
     now = datetime.now(timezone.utc)
@@ -112,13 +109,25 @@ def stop_charging(session_id: int, reason: str = "completed", db: Session = Depe
     db.refresh(new_payment)
 
     return {
-        "message": f"Oturum durduruldu: {reason}",
+        "message": f"Session is stopped: {reason}",
         "summary": {
             "totalKwh": round(calculated_kwh, 2),
             "totalCost": round(calculated_cost, 2),
             "durationMinutes": int(elapsed_hours * 60)
         }
     }
+
+# app/api/charging.py içine ekle
+@router.get("/active-session-for-driver/{driver_id}")
+def get_active_session_id(driver_id: int, db: Session = Depends(get_session)):
+    statement = select(ChargingSession).join(Reservation).where(
+        Reservation.driver_id == driver_id,
+        ChargingSession.status == "active"
+    )
+    result = db.exec(statement).first()
+    if not result:
+        return {"sessionID": None}
+    return {"sessionID": result.sessionID}
 
 @router.post("/{session_id}/emergency-fault")
 def report_fault(session_id: int, db: Session = Depends(get_session)):
@@ -128,7 +137,7 @@ def report_fault(session_id: int, db: Session = Depends(get_session)):
     """
     session_obj = db.get(ChargingSession, session_id)
     if not session_obj:
-        raise HTTPException(status_code=404, detail="Oturum bulunamadı.")
+        raise HTTPException(status_code=404, detail="Session is not found.")
 
     try:
         # 1. Oturum durumunu hemen güncelle
@@ -152,4 +161,4 @@ def report_fault(session_id: int, db: Session = Depends(get_session)):
         db.rollback()
         # Kritik hata: Loglama yapılması şart
         print(f"CRITICAL: Emergency stop failed for session {session_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Acil durdurma sırasında veritabanı hatası oluştu.")
+        raise HTTPException(status_code=500, detail="Database error happened during emergency fault.")

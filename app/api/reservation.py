@@ -144,6 +144,10 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     local_time = reservation_data.startTime + timedelta(hours=3)
     display_time = local_time.strftime("%d/%m/%Y %H:%M")
 
+    # Change UTC to local timezone for notification
+    local_time = reservation_data.startTime + timedelta(hours=3)
+    display_time = local_time.strftime("%d/%m/%Y %H:%M")
+
     create_system_notification(
         session, 
         driver_id=reservation_data.driver_id, 

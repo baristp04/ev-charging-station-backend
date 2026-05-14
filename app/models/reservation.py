@@ -12,7 +12,7 @@ class Reservation(SQLModel, table=True):
     __tablename__ = "reservation"
     
     reservationID: Optional[int] = Field(default=None, primary_key=True)
-    date: datetime
+    date: Optional[datetime] = Field(default=None)
     startTime: datetime
     endTime: datetime
     status: str = Field(default="active")

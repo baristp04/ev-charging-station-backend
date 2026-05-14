@@ -1,6 +1,7 @@
+from app.utils.notifications import create_system_notification
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from app.database import get_session
 from app.models.session import ChargingSession
 from app.models.payment import Payment
@@ -65,6 +66,17 @@ def start_session(reservation_id: int, db: Session = Depends(get_session)):
     db.add(new_session)
     db.commit()
     db.refresh(new_session)
+
+    # Change UTC to local timezone for notification
+    local_time = reservation.startTime + timedelta(hours=3)
+    display_time = local_time.strftime("%d/%m/%Y %H:%M")
+
+    create_system_notification(
+        db, 
+        driver_id= reservation.driver_id,  
+        n_type="Active Session", 
+        message=f"Your charging session at {display_time} started!"
+    )
     return new_session
 
 
@@ -185,6 +197,17 @@ def stop_charging(session_id: int, db: Session = Depends(get_session)):
     db.add(session_obj)
     db.add(payment)
     db.commit()
+
+    # Change UTC to local timezone for notification
+    local_time = reservation.startTime + timedelta(hours=3)
+    display_time = local_time.strftime("%d/%m/%Y %H:%M")
+
+    create_system_notification(
+        db, 
+        driver_id= reservation.driver_id,  
+        n_type="Active Session", 
+        message=f"Your charging session at {display_time} stopped!"
+    )
 
     return {
         "message": "Charging session completed.",

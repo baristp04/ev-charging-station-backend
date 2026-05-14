@@ -140,11 +140,15 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     session.commit()
     session.refresh(reservation_data) 
 
+    # Change UTC to local timezone for notification
+    local_time = reservation_data.startTime + timedelta(hours=3)
+    display_time = local_time.strftime("%d/%m/%Y %H:%M")
+
     create_system_notification(
         session, 
         driver_id=reservation_data.driver_id, 
         n_type="reservation", 
-        message=f"New reservation created for {reservation_data.date}!"
+        message=f"New reservation created for {display_time}!"
     )
 
     return {"message": "Reservation created successfully.", "data": reservation_data}

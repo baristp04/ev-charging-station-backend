@@ -42,18 +42,10 @@ def get_stations(session: Session = Depends(get_session)):
 
 @station_router.get("/{station_id}/chargers")
 def get_station_chargers(station_id: int, session: Session = Depends(get_session)):
-    # 1. PERFORMANS: Her GET isteğinde tüm sistemi kilitlememesi için bakım kontrolünü yoruma alıyoruz.
-    # check_and_activate_maintenance(session)
-    
-    # 2. HATA KONTROLÜ (KIRPILMADI): İstasyon gerçekten var mı diye bakıyoruz.
     station = session.get(ChargingStation, station_id)
     if not station:
         raise HTTPException(status_code=404, detail="Station not found.")
-    
-    # 3. OPTİMİZASYON: "station.chargers" (tembel yükleme) kullanmak yerine,
-    # doğrudan Charger tablosundan bu istasyona ait olanları tek seferde çekiyoruz.
     chargers = session.exec(select(Charger).where(Charger.station_id == station_id)).all()
-    
     return chargers
 
 
@@ -69,12 +61,24 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     if isinstance(reservation_data.endTime, str):
         reservation_data.endTime = datetime.fromisoformat(reservation_data.endTime)
 
+    # Normalize to UTC-aware datetimes
+    if reservation_data.startTime.tzinfo is None:
+        reservation_data.startTime = reservation_data.startTime.replace(tzinfo=timezone.utc)
+    if reservation_data.endTime.tzinfo is None:
+        reservation_data.endTime = reservation_data.endTime.replace(tzinfo=timezone.utc)
+
     # Fill date field from startTime if not provided separately
     if not reservation_data.date:
         reservation_data.date = reservation_data.startTime
 
+    now = datetime.now(timezone.utc)
+
+    # Rule: Cannot reserve a time slot that has already passed
+    if reservation_data.startTime < now:
+        raise HTTPException(status_code=400, detail="Cannot make a reservation for a past time slot.")
+
     # Rule: Reservation cannot be made more than 24 hours in advance
-    if reservation_data.startTime > datetime.now(timezone.utc) + timedelta(hours=24):
+    if reservation_data.startTime > now + timedelta(hours=24):
         raise HTTPException(status_code=400, detail="Reservations can only be made up to 24 hours in advance.")
 
     # Rule: Maximum charging session duration is 2 hours
@@ -118,17 +122,16 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     cost = reservation_data.estimated_cost
     cleaned_cost = float(str(cost).replace('₺', '').replace(',', '.').strip())
 
-    # Check 
+    # Check wallet balance
     if driver.balance < cleaned_cost:
-        # 402 Payment Required
         raise HTTPException(
             status_code=402, 
             detail=f"Insufficient balance. Cost: ₺{cost}, Your Balance: ₺{driver.balance}"
         )
 
-    # Payment
+    # Deduct from wallet
     driver.balance -= cleaned_cost
-    session.add(driver) # Update balance
+    session.add(driver)
 
     reservation_data.estimated_cost = cleaned_cost
 
@@ -137,7 +140,6 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     session.commit()
     session.refresh(reservation_data) 
 
-    # Rezervasyon başarıyla kaydedildikten sonra:
     create_system_notification(
         session, 
         driver_id=reservation_data.driver_id, 
@@ -151,7 +153,6 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
 @station_router.get("/my-reservations/{driver_id}")
 def get_my_reservations(driver_id: int, session: Session = Depends(get_session)):
 
-    # ── YENİ: SÜRÜCÜ KONTROLÜ (Güvenlik Adımı) ──
     driver = session.get(EVDriver, driver_id)
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found.")
@@ -159,10 +160,6 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
     # Auto-expire outdated reservations before returning the list
     expire_old_reservations(session)
 
-    # ── OPTİMİZE EDİLMİŞ N+1 ÇÖZÜMÜ (JOIN SORGUSU) ──
-    # SQLModel (SQLAlchemy altyapısı) ile Reservation tablosunu çekerken, 
-    # ona bağlı olan Charger, Vehicle ve Station tablolarını TEK BİR SORGUDAYKEN birleştiriyoruz.
-    
     query = (
         select(Reservation, Charger, Vehicle, ChargingStation)
         .join(Charger, Reservation.charger_id == Charger.chargerID, isouter=True)
@@ -174,11 +171,9 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
         )
     )
     
-    # Tüm veriyi 150 sorgu yerine SADECE 1 SORGUDAN çektik!
     results = session.exec(query).all()
 
     formatted_result = []
-    # results içindeki her bir satır (tuple), o dört tablonun birleşmiş halini tutar
     for r, charger, vehicle, station in results:
         formatted_result.append({
             "reservationID": r.reservationID,
@@ -204,7 +199,6 @@ def cancel_reservation(reservation_id: int, session: Session = Depends(get_sessi
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found.")
 
-    # Prevent cancelling an already cancelled or expired reservation
     if reservation.status == "cancelled":
         raise HTTPException(status_code=400, detail="This reservation is already cancelled.")
     if reservation.status == "expired":
@@ -217,6 +211,3 @@ def cancel_reservation(reservation_id: int, session: Session = Depends(get_sessi
     session.refresh(reservation)
 
     return {"message": "Reservation successfully cancelled.", "reservationID": reservation_id}
-
-#
-#

@@ -10,9 +10,7 @@ from app.models.reservation import Reservation
 from app.models.vehicle import Vehicle
 from app.models.charger import Charger
 from app.models.driver import EVDriver
-from app.utils.notifications import create_system_notification 
-from datetime import datetime, timezone
-from sqlmodel import select
+from app.utils.notifications import create_system_notification
 
 # UC-01: Charging Reservation Management
 station_router = APIRouter(prefix="/api/stations", tags=["Stations"])
@@ -90,6 +88,16 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     if not charger:
         raise HTTPException(status_code=404, detail="Charger not found.")
 
+    # Block reservations on offline or under-maintenance stations
+    station = session.get(ChargingStation, charger.station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found.")
+    if station.status in ("offline", "maintenance"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"This station is currently {station.status} and cannot accept reservations."
+        )
+
     # Verify vehicle exists
     vehicle = session.get(Vehicle, reservation_data.vehicle_id)
     if not vehicle:
@@ -112,7 +120,7 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
 
     if overlapping:
         raise HTTPException(status_code=409, detail="This charger is already reserved for the selected time slot.")
-    
+
     # Find driver
     driver = session.get(EVDriver, reservation_data.driver_id)
     if not driver:
@@ -125,7 +133,7 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     # Check wallet balance
     if driver.balance < cleaned_cost:
         raise HTTPException(
-            status_code=402, 
+            status_code=402,
             detail=f"Insufficient balance. Cost: ₺{cost}, Your Balance: ₺{driver.balance}"
         )
 
@@ -138,20 +146,16 @@ def create_reservation(reservation_data: Reservation, session: Session = Depends
     # All checks passed — save reservation to database
     session.add(reservation_data)
     session.commit()
-    session.refresh(reservation_data) 
-    
-    # Change UTC to local timezone for notification
-    local_time = reservation_data.startTime + timedelta(hours=3)
-    display_time = local_time.strftime("%d/%m/%Y %H:%M")
+    session.refresh(reservation_data)
 
-    # Change UTC to local timezone for notification
+    # Convert UTC to local time (Istanbul +3) for notification display
     local_time = reservation_data.startTime + timedelta(hours=3)
     display_time = local_time.strftime("%d/%m/%Y %H:%M")
 
     create_system_notification(
-        session, 
-        driver_id=reservation_data.driver_id, 
-        n_type="reservation", 
+        session,
+        driver_id=reservation_data.driver_id,
+        n_type="reservation",
         message=f"New reservation created for {display_time}!"
     )
 
@@ -164,7 +168,7 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
     driver = session.get(EVDriver, driver_id)
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found.")
-    
+
     # Auto-expire outdated reservations before returning the list
     expire_old_reservations(session)
 
@@ -178,24 +182,24 @@ def get_my_reservations(driver_id: int, session: Session = Depends(get_session))
             Reservation.status != "cancelled"
         )
     )
-    
+
     results = session.exec(query).all()
 
     formatted_result = []
     for r, charger, vehicle, station in results:
         formatted_result.append({
-            "reservationID": r.reservationID,
-            "date": r.date,
-            "startTime": r.startTime,
-            "endTime": r.endTime,
-            "status": r.status,  
-            "charger_id": r.charger_id,
-            "chargerType": charger.type if charger else None,
-            "connectorType": charger.connectorType if charger else None,
-            "stationName": station.name if station else None,
+            "reservationID":   r.reservationID,
+            "date":            r.date,
+            "startTime":       r.startTime,
+            "endTime":         r.endTime,
+            "status":          r.status,
+            "charger_id":      r.charger_id,
+            "chargerType":     charger.type if charger else None,
+            "connectorType":   charger.connectorType if charger else None,
+            "stationName":     station.name if station else None,
             "stationLocation": station.location if station else None,
-            "vehiclePlate": vehicle.plateNumber if vehicle else None,
-            "vehicleBrand": vehicle.brand if vehicle else None,
+            "vehiclePlate":    vehicle.plateNumber if vehicle else None,
+            "vehicleBrand":    vehicle.brand if vehicle else None,
         })
 
     return formatted_result
